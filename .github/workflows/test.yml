@@ -1,0 +1,121 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-cov pytest-xdist
+        pip install black flake8 isort mypy
+        # Install scikit-survival only on non-Windows platforms
+        if [ "${{ matrix.os }}" != "windows-latest" ]; then
+          pip install scikit-survival
+        fi
+      shell: bash
+    
+    - name: Lint with flake8
+      run: |
+        flake8 nullstrap/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 nullstrap/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Check code formatting with black
+      run: |
+        black --check nullstrap/ tests/ || echo "Code formatting issues found - please run 'black nullstrap/ tests/' locally"
+      continue-on-error: true
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only nullstrap/ tests/ || echo "Import sorting issues found - please run 'isort nullstrap/ tests/' locally"
+      continue-on-error: true
+    
+    - name: Type check with mypy
+      run: |
+        mypy nullstrap/ --ignore-missing-imports || echo "Type checking issues found - please fix mypy errors locally"
+      continue-on-error: true
+    
+    - name: Test with pytest
+      run: |
+        # Skip Cox tests on Windows due to scikit-survival dependency
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          pytest tests/ -m "not slow and not cox" --cov=nullstrap --cov-report=xml --cov-report=term-missing -v -n auto
+        else
+          pytest tests/ -m "not slow" --cov=nullstrap --cov-report=xml --cov-report=term-missing -v -n auto
+        fi
+      shell: bash
+    
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  test-slow:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-cov pytest-xdist
+        pip install scikit-survival
+    
+    - name: Test with pytest (slow tests)
+      run: |
+        pytest tests/ -m "slow" --cov=nullstrap --cov-report=xml --cov-report=term-missing -v -n 0
+
+  test-optional-deps:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        extra: [survival, graphical, test, dev, docs]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[${{ matrix.extra }}]"
+        pip install pytest pytest-cov pytest-xdist
+    
+    - name: Test optional dependencies
+      run: |
+        pytest tests/test_models.py -v
