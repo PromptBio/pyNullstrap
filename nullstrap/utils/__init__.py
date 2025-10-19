@@ -2,8 +2,7 @@
 Utility functions for Nullstrap procedures.
 
 This module contains shared utilities used across different Nullstrap estimators,
-including threshold computation, correction factor estimation, data simulation,
-evaluation metrics, and diagnostic tools.
+including threshold computation, correction factor estimation, data simulation and evaluation metrics.
 """
 
 from .core import (binary_search_correction_factor, binary_search_threshold,

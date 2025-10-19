@@ -189,7 +189,7 @@ class TestBinarySearchThreshold:
         assert threshold < np.max(np.abs(W))
 
         # Check that discoveries are made
-        discoveries = np.sum(W >= threshold)
+        discoveries = np.count_nonzero(W >= threshold)
         assert discoveries > 0
 
     @pytest.mark.utils
@@ -210,8 +210,8 @@ class TestBinarySearchThreshold:
         threshold = binary_search_threshold(W, coef_knockoff, fdr=0.1)
 
         # Count discoveries and knockoff rejections
-        discoveries = np.sum(W >= threshold)
-        knockoff_rejections = np.sum(coef_knockoff >= threshold)
+        discoveries = np.count_nonzero(W >= threshold)
+        knockoff_rejections = np.count_nonzero(coef_knockoff >= threshold)
 
         if discoveries > 0:
             fdp = (1 + knockoff_rejections) / discoveries
@@ -231,7 +231,7 @@ class TestBinarySearchThreshold:
         threshold = binary_search_threshold(W, coef_knockoff, fdr=0.1)
 
         # Should return a threshold that makes few or no discoveries
-        discoveries = np.sum(W >= threshold)
+        discoveries = np.count_nonzero(W >= threshold)
         # Allow for some discoveries due to randomness, but should be very few
         assert discoveries <= 5, f"Too many discoveries ({discoveries}) with pure noise"
 
@@ -250,7 +250,7 @@ class TestBinarySearchThreshold:
         threshold = binary_search_threshold(W, coef_knockoff, fdr=0.1)
 
         # Should discover most/all of the strong signals
-        discoveries = np.sum(W >= threshold)
+        discoveries = np.count_nonzero(W >= threshold)
         assert discoveries >= 8  # Should find most of the 10 true signals
 
     @pytest.mark.utils

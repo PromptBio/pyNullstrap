@@ -36,12 +36,14 @@ class NullstrapLM(BaseNullstrap):
         Minimum bound for correction factor search.
     error_dist : str, default="normal"
         Error distribution for knockoff data generation: "normal" or "resample".
-    alphas : int or array-like, default=100
-       Alphas for CV: int (number of alphas, with eps determining range) or array (explicit values).
-        Matches sklearn's LassoCV parameter (1.7+) and glmnet's nlambda.
+    alphas : int, array-like, or None, default=100
+        Regularization parameters for cross-validation:
+        - int: Number of alphas to auto-generate (uses eps for range)
+        - array-like: Explicit alpha values to try
+        - None: Let sklearn fully auto-generate (typically 100 alphas)
     eps : float, default=1e-3
         Length of the path. eps=1e-3 means alpha_min/alpha_max = 1e-3. 
-        Only used when alphas is an integer. Matches glmnet's lambda.min.ratio.
+        Only used when alphas is int or None. Matches glmnet's lambda.min.ratio.
     random_state : int, optional
         Random seed for reproducibility.
 
@@ -77,7 +79,7 @@ class NullstrapLM(BaseNullstrap):
         binary_search_tol: float = 1e-8,
         correction_min: float = 0.05,
         error_dist: str = "normal",
-        alphas: Union[int, Sequence[float]] = 100,
+        alphas: Optional[Union[int, Sequence[float]]] = 100,
         eps: float = 1e-3,
         random_state: Optional[int] = None,
     ):
@@ -101,7 +103,7 @@ class NullstrapLM(BaseNullstrap):
 
     def _validate_parameters(self) -> None:
         """
-        Validate LM-specific parameters. Checks that error_dist is valid.
+        Validate LM-specific parameters. Checks that error_dist and alphas are valid.
         """
         # Call base class validation first
         super()._validate_parameters()
@@ -109,6 +111,27 @@ class NullstrapLM(BaseNullstrap):
         # Validate error_dist parameter
         if self.error_dist not in ["normal", "resample"]:
             raise ValueError("error_dist must be 'normal' or 'resample'")
+        
+        # Validate alphas parameter
+        if self.alphas is None:
+            # None is valid - sklearn will auto-generate
+            pass
+        elif isinstance(self.alphas, int):
+            if self.alphas <= 0:
+                raise ValueError(f"alphas (int) must be positive, got {self.alphas}")
+        elif hasattr(self.alphas, '__iter__') and not isinstance(self.alphas, str):
+            try:
+                alphas_array = np.array(self.alphas)
+                if alphas_array.ndim == 0:
+                    raise ValueError("alphas must be int, array-like, or None, got scalar")
+                if len(alphas_array) == 0:
+                    raise ValueError("alphas array cannot be empty")
+                if not np.all(alphas_array > 0):
+                    raise ValueError("all alphas values must be positive")
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid alphas array: {e}")
+        else:
+            raise ValueError(f"alphas must be int, array-like, or None, got {type(self.alphas).__name__}")
 
     def _validate_data(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
         """
@@ -164,7 +187,7 @@ class NullstrapLM(BaseNullstrap):
         residuals = y_centered - model_base.predict(X_scaled)
 
         # Estimate noise standard deviation and scale residuals for resampling
-        n_nonzero = np.sum(coef_base != 0)
+        n_nonzero = np.count_nonzero(coef_base)
         self.sigma_hat_ = np.sqrt(np.sum(residuals**2) / max(1, self.n_samples_ - n_nonzero))
         
         # Scale residuals for resampling
@@ -232,8 +255,10 @@ class NullstrapLM(BaseNullstrap):
 
         Notes
         -----
-        Uses LassoCV when alpha is None. If self.alphas is an array, uses those values
-        for CV; if integer, generates that many alphas automatically using eps ratio.
+        Uses LassoCV when alpha is None. Handles self.alphas flexibly:
+        - int: Generates that many alphas using n_alphas and eps
+        - array-like: Uses explicit alpha values
+        - None: Let sklearn auto-generate alphas
         Model fitted without intercept as data should be pre-standardized.
         """
         if alpha is None:
@@ -246,11 +271,14 @@ class NullstrapLM(BaseNullstrap):
                 "random_state": self.random_state,
             }
 
-            # Handle alphas parameter (flexible: int or array)
-            lasso_cv_kwargs["alphas"] = self.alphas
-            # Only add eps if alphas is an integer (for automatic generation)
-            if isinstance(self.alphas, int):
-                lasso_cv_kwargs["eps"] = self.eps
+            # Handle alphas parameter (flexible: int, array-like, or None)
+            # sklearn accepts int directly for alphas (auto-generates values)
+            if self.alphas is not None:
+                # Pass alphas directly (int or array-like)
+                lasso_cv_kwargs["alphas"] = self.alphas
+                # Add eps for controlling the range when alphas is int
+                if isinstance(self.alphas, int):
+                    lasso_cv_kwargs["eps"] = self.eps
 
             lasso_cv = LassoCV(**lasso_cv_kwargs)
 

@@ -4,37 +4,37 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "nullstrap"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python implementation of Nullstrap — a versatile method for variable selection with false discovery rate control."
-authors = [{name = "Wenbin Guo"}]
+authors = [{name = "Wenbin Guo", email = "wbguo@ucla.edu"}]
 keywords = ["variable selection", "false discovery rate", "statistics", "machine learning", "feature selection"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 readme = "README.md"
-license = "MIT"
-requires-python = ">=3.9"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
 dependencies = [
-    "numpy>=1.24",
-    "scikit-learn>=1.2",
-    "scipy>=1.10",
-    "scikit-survival>=0.22; platform_system!='Windows'",
+    "numpy>=1.24,<2.0",  # Constrained to NumPy 1.x for stability
+    "scikit-learn>=1.7",  # Requires 1.7+ for LassoCV alphas int support
+    "scipy>=1.10,<1.15",  # Compatible with NumPy 1.x
+    "scikit-survival>=0.25; platform_system!='Windows'",  # 0.25+ supports sklearn 1.7
 ]
 
 [project.optional-dependencies]
-graphical = ["scikit-learn>=1.2"]
-survival = ["scikit-survival>=0.22"]
+survival = ["scikit-survival>=0.25"]  # 0.25+ supports sklearn 1.7
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -56,22 +56,10 @@ docs = [
     "sphinx-autodoc-typehints>=1.0"
 ]
 all = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-xdist>=3.0",
-    "pytest-timeout>=2.0",
-    "black>=23.0",
-    "isort>=5.12",
-    "flake8>=6.0",
-    "mypy>=1.0",
-    "pre-commit>=3.0",
-    "sphinx>=4.0.0",
-    "sphinx-rtd-theme>=1.0.0",
-    "myst-parser>=0.18.0",
-    "linkify-it-py>=2.0.0",
-    "sphinx-autodoc-typehints>=1.0"
+    "nullstrap[survival,test,dev,docs]"
 ]
 
 [project.urls]
-Repository = "https://github.com/wbvguo/pyNullstrap"
-Documentation = "https://github.com/wbvguo/pyNullstrap"
+Repository = "https://github.com/PromptBio/pyNullstrap"
+Documentation = "https://github.com/PromptBio/pyNullstrap"
+Issue Tracker = "https://github.com/PromptBio/pyNullstrap/issues"

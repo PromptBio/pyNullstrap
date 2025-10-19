@@ -37,9 +37,11 @@ class NullstrapGLM(BaseNullstrap):
         Minimum bound for correction factor search.
     family : str, default="binomial"
         GLM family. Currently only "binomial" supported.
-    alphas : int or array-like, default=10
-        Alphas for CV: int (number of alphas, sklearn auto-generates range) or array (explicit values).
-        Internally converted to C = 1/alpha for sklearn.
+    alphas : int, array-like, or None, default=10
+        Regularization parameters for cross-validation:
+        - int: Number of alphas (sklearn auto-generates C values)
+        - array-like: Explicit alpha values (converted to Cs = 1/alphas)
+        - None: Let sklearn fully auto-generate (typically 10 Cs)
     penalty : str, default="l1"
         Regularization penalty: "l1" (LASSO), "l2" (Ridge), or "elasticnet".
         Must be compatible with solver.
@@ -84,7 +86,7 @@ class NullstrapGLM(BaseNullstrap):
         binary_search_tol: float = 1e-8,
         correction_min: float = 1e-14,
         family: str = "binomial",
-        alphas: Union[int, Sequence[float]] = 10,
+        alphas: Optional[Union[int, Sequence[float]]] = 10,
         penalty: str = "l1",
         solver: str = "saga",
         scoring: str = "neg_log_loss",
@@ -112,7 +114,7 @@ class NullstrapGLM(BaseNullstrap):
 
     def _validate_parameters(self) -> None:
         """
-        Validate GLM-specific parameters. Checks family, penalty, and solver compatibility.
+        Validate GLM-specific parameters. Checks family, penalty, solver compatibility, and alphas.
         """
         # Call base class validation first
         super()._validate_parameters()
@@ -148,6 +150,27 @@ class NullstrapGLM(BaseNullstrap):
                 f"l1_ratio parameter is only used with penalty='elasticnet', got penalty='{self.penalty}'. "
                 f"Either set penalty='elasticnet' or remove l1_ratio parameter."
             )
+        
+        # Validate alphas parameter
+        if self.alphas is None:
+            # None is valid - sklearn will auto-generate
+            pass
+        elif isinstance(self.alphas, int):
+            if self.alphas <= 0:
+                raise ValueError(f"alphas (int) must be positive, got {self.alphas}")
+        elif hasattr(self.alphas, '__iter__') and not isinstance(self.alphas, str):
+            try:
+                alphas_array = np.array(self.alphas)
+                if alphas_array.ndim == 0:
+                    raise ValueError("alphas must be int, array-like, or None, got scalar")
+                if len(alphas_array) == 0:
+                    raise ValueError("alphas array cannot be empty")
+                if not np.all(alphas_array > 0):
+                    raise ValueError("all alphas values must be positive")
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid alphas array: {e}")
+        else:
+            raise ValueError(f"alphas must be int, array-like, or None, got {type(self.alphas).__name__}")
 
     def _validate_data(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
         """
@@ -213,12 +236,12 @@ class NullstrapGLM(BaseNullstrap):
         self.alpha_used_ = alpha_used
 
         # Get base coefficients
-        coef_base = model_base.coef_.flatten() # returns a 2D array (n_classes, n_features), thus flatten it
+        coef_base = model_base.coef_.ravel() # returns a 2D array (n_classes, n_features), thus flatten it
 
         # Generate knockoff data, fit model to knockoff data
         y_knockoff = self._generate_synthetic_data(X_scaled, beta=None, family=self.family)
         model_knockoff, _ = self._fit_lasso_model(X_scaled, y_knockoff, alpha=self.alpha_used_)
-        coef_knockoff = model_knockoff.coef_.flatten()
+        coef_knockoff = model_knockoff.coef_.ravel()
 
         # Estimate correction factor
         correction_factor = self._estimate_correction_factor(X_scaled, y, coef_base)
@@ -248,7 +271,8 @@ class NullstrapGLM(BaseNullstrap):
         self, 
         X: np.ndarray, 
         y: np.ndarray, 
-        alpha: Optional[float] = None
+        alpha: Optional[float] = None,
+        alpha_mode: str = "min"
     ) -> Tuple[LogisticRegression, float]:
         """
         Fit LASSO logistic regression with specified or cross-validated regularization parameter.
@@ -303,24 +327,41 @@ class NullstrapGLM(BaseNullstrap):
                 logit_cv_kwargs["l1_ratios"] = [self.l1_ratio]
 
             # Convert alphas to Cs (sklearn uses C = 1/alpha)
-            if isinstance(self.alphas, int):
+            # Handle None, int, or array-like
+            if self.alphas is None:
+                # None: Let sklearn auto-generate (default 10 Cs)
+                pass  # Don't set Cs, sklearn will use default
+            elif isinstance(self.alphas, int):
+                # int: Number of Cs to auto-generate
                 logit_cv_kwargs["Cs"] = self.alphas
             else:
+                # array-like: Convert alphas to Cs
                 logit_cv_kwargs["Cs"] = 1.0 / np.array(self.alphas)
 
             logit_cv = LogisticRegressionCV(**logit_cv_kwargs)
 
             logit_cv.fit(X, y)
             # R implementation uses 0.5 * alpha.1se, we approximate this
-            C_selected = logit_cv.C_[0]  # Best C from CV
-            alpha_used = 1.0 / (self.alpha_scale_factor * C_selected)  # More conservative
+            
+            if alpha_mode == "min":
+                C_selected = logit_cv.C_[0]  # Best C from CV
+                alpha_min = 1.0 / C_selected
+                alpha_used = self.alpha_scale_factor * alpha_min
+            else:
+                scores = logit_cv.scores_[1]
+                mean_err = 1 - scores.mean(axis=0)       # misclassification error
+                se_err   = scores.std(axis=0) / np.sqrt(scores.shape[0])
+                idx_min = np.argmin(mean_err)
+                threshold = mean_err[idx_min] + se_err[idx_min]
+                c_1se = max(c for c, err in zip(logit_cv.Cs_, mean_err) if err <= threshold)
+                alpha_1se = 1.0 / c_1se
+                alpha_used = self.alpha_scale_factor * alpha_1se
         else:
             alpha_used = alpha
-            C_selected = 1.0 / alpha_used
 
         # Fit final model with selected regularization
         logit_kwargs = {
-            "C": C_selected,
+            "C": 1.0 / alpha_used,
             "fit_intercept": False,
             "max_iter": self.max_iter,
             "tol": self.lasso_tol,
@@ -426,8 +467,8 @@ class NullstrapGLM(BaseNullstrap):
             # Fit models to augmented and knockoff data (estimate coefficients)
             model_augmented, _ = self._fit_lasso_model(X, y_augmented, alpha=self.alpha_used_)
             model_knockoff, _  = self._fit_lasso_model(X, y_knockoff, alpha=self.alpha_used_)
-            coef_augmented = model_augmented.coef_.flatten()
-            coef_knockoff = model_knockoff.coef_.flatten()
+            coef_augmented = model_augmented.coef_.ravel()
+            coef_knockoff = model_knockoff.coef_.ravel()
             
             # Calculate model-specific scale factor for GLM models
             scale_factor = self._compute_scale_factor()

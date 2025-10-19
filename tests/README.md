@@ -9,23 +9,30 @@ tests/
 ├── README.md              # This file
 ├── __init__.py            # Test package initialization
 ├── conftest.py            # Pytest fixtures and configuration
+├── models/                # Model-specific tests
+│   ├── test_lm.py         # Linear model tests
+│   ├── test_glm.py        # GLM tests
+│   ├── test_cox.py        # Cox model tests
+│   └── test_ggm.py        # Gaussian Graphical Model tests
 ├── notebooks/             # Interactive test notebooks
-│   ├── test_cox.ipynb     # Cox model testing
+│   ├── test_lm.ipynb      # Linear model testing
 │   ├── test_glm.ipynb     # GLM model testing
-│   └── test_lm.ipynb      # Linear model testing
+│   ├── test_cox.ipynb     # Cox model testing
+│   └── test_ggm.ipynb     # GGM model testing
+├── run_tests.py           # Test runner script
 ├── test_integration.py    # End-to-end workflow tests
-├── test_models.py         # Model tests (LM, GLM, Cox, GGM)
+├── test_models.py         # Model test aggregator
 └── test_utils.py          # Utility function tests
 ```
 
 ## 🧪 Test Types
 
-| Type | Files | Purpose | Markers |
-|------|-------|---------|---------|
-| **Unit** | `test_models.py`, `test_utils.py` | Individual components | `@pytest.mark.unit` |
-| **Integration** | `test_integration.py` | End-to-end workflows | `@pytest.mark.integration` |
-| **Performance** | Various | Large datasets, memory efficiency | `@pytest.mark.slow` |
-| **Notebooks** | `notebooks/*.ipynb` | Interactive testing & demos | Manual execution |
+| Type            | Files                               | Purpose                           | Markers                    |
+| --------------- | ----------------------------------- | --------------------------------- | -------------------------- |
+| **Unit**        | `models/test_*.py`, `test_utils.py` | Individual components             | `@pytest.mark.unit`        |
+| **Integration** | `test_integration.py`               | End-to-end workflows              | `@pytest.mark.integration` |
+| **Performance** | Various                             | Large datasets, memory efficiency | `@pytest.mark.slow`        |
+| **Notebooks**   | `notebooks/*.ipynb`                 | Interactive testing & demos       | Manual execution           |
 
 ## 🚀 Running Tests
 
@@ -37,18 +44,71 @@ pip install -e ".[test]"
 pytest
 
 # Recommended: Use make commands
-make test              # All tests (excluding slow)
+make test              # Quick tests (recommended for development)
+make test-all          # All tests including slow tests
 make test-unit         # Unit tests only
 make test-integration  # Integration tests only
-make test-coverage     # With coverage report
-
-# Alternative: Test runner script
-python tests/run_tests.py quick --install-deps  # Quick tests with auto-install
-python tests/run_tests.py coverage              # Tests with coverage
-python tests/run_tests.py all                  # All tests including slow
+make test-models       # All model tests (LM, GLM, Cox, GGM)
+make test-utils        # Utility function tests only
+make test-coverage     # Tests with coverage report
+make help              # Show all available commands
 ```
 
-> **💡 Quick Reference**: For a standalone testing cheat sheet, see [TEST.md](../TEST.md) in the project root.
+### Using the Test Runner Script
+
+The `run_tests.py` script provides a convenient interface for running tests with various options.
+
+**Available Test Types:**
+| Command       | Description            | Use Case                    |
+| ------------- | ---------------------- | --------------------------- |
+| `quick`       | Excludes slow tests    | Recommended for development |
+| `all`         | Runs all tests         | Comprehensive testing       |
+| `unit`        | Unit tests only        | Test individual components  |
+| `integration` | Integration tests only | Test component interactions |
+| `models`      | All model tests        | Test LM, GLM, Cox, GGM      |
+| `utils`       | Utility tests only     | Test helper functions       |
+| `slow`        | Performance tests      | Test with large datasets    |
+| `coverage`    | Tests with coverage    | Generate coverage reports   |
+
+**Quick Reference:**
+```bash
+# Quick tests (recommended for development)
+python tests/run_tests.py quick
+
+# Run all tests including slow ones
+python tests/run_tests.py all
+
+# Run specific test categories
+python tests/run_tests.py unit              # Unit tests only
+python tests/run_tests.py integration       # Integration tests only
+python tests/run_tests.py models            # All model tests (LM, GLM, Cox, GGM)
+python tests/run_tests.py utils             # Utility function tests only
+python tests/run_tests.py slow              # Performance tests only
+
+# Run with coverage report
+python tests/run_tests.py coverage
+
+# Additional options
+python tests/run_tests.py quick --verbose          # Verbose output
+python tests/run_tests.py all -n 4                 # Use 4 parallel workers
+python tests/run_tests.py unit -n 0                # Sequential execution
+python tests/run_tests.py quick --install-deps     # Auto-install dependencies
+python tests/run_tests.py unit -x                  # Stop on first failure
+python tests/run_tests.py quick --lf               # Run only last failed tests
+
+# Get help
+python tests/run_tests.py --help
+```
+
+**Command-Line Options:**
+| Option           | Short  | Description                                                  |
+| ---------------- | ------ | ------------------------------------------------------------ |
+| `--verbose`      | `-v`   | Show verbose test output                                     |
+| `--workers N`    | `-n N` | Number of parallel workers (0 for sequential, default: auto) |
+| `--install-deps` |        | Install test dependencies before running                     |
+| `--failfast`     | `-x`   | Stop execution on first test failure                         |
+| `--last-failed`  | `--lf` | Run only tests that failed in the last run                   |
+| `--help`         | `-h`   | Show help message and exit                                   |
 
 ### Test Categories
 
@@ -60,9 +120,13 @@ pytest -m "not slow"                # Exclude slow tests
 pytest -m "slow"                    # Performance tests only
 
 # Run specific test files
-pytest tests/test_models.py         # Model tests only
+pytest tests/test_models.py         # All model tests (aggregator)
+pytest tests/models/test_lm.py      # Linear model tests only
+pytest tests/models/test_glm.py     # GLM tests only
+pytest tests/models/test_cox.py     # Cox model tests only
+pytest tests/models/test_ggm.py     # GGM tests only
 pytest tests/test_utils.py          # Utility tests only
-pytest tests/test_integration.py   # Integration tests only
+pytest tests/test_integration.py    # Integration tests only
 ```
 
 ### Coverage & Performance
@@ -98,15 +162,6 @@ pytest -n 0                      # Sequential execution
 - `@pytest.mark.integration`: Integration tests
 - `@pytest.mark.slow`: Performance tests
 
-## 🔄 Continuous Integration
-
-GitHub Actions workflow (`.github/workflows/test.yml`):
-- **Platforms**: Ubuntu, Windows, macOS
-- **Python versions**: 3.9, 3.10, 3.11, 3.12
-- **Checks**: Linting (flake8, black, isort, mypy)
-- **Coverage**: Upload to Codecov
-- **Dependencies**: Tests optional dependencies
-
 ## ✍️ Writing New Tests
 
 ### Naming Convention
@@ -140,8 +195,9 @@ class TestNewFeature:
 
 ### Running Specific Tests
 ```bash
-pytest tests/test_models.py                    # Specific file
-pytest tests/test_models.py::TestNullstrapLM   # Specific class
+pytest tests/models/test_lm.py                 # Specific file
+pytest tests/models/test_lm.py::TestNullstrapLM # Specific class
+pytest tests/models/test_lm.py::TestNullstrapLM::test_basic_fitting # Specific test
 pytest -k "test_basic"                         # Pattern matching
 pytest -v                                      # Verbose output
 pytest --pdb                                   # Debugger on failure

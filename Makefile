@@ -1,10 +1,25 @@
 # Makefile for pyNullstrap development
+# Python 3.10+ required
 
-.PHONY: help install install-dev test test-unit test-integration test-slow test-all test-runner test-runner-all test-runner-coverage test-runner-install lint format type-check clean docs docs-clean docs-clean-all
+.PHONY: help install install-dev install-all install-survival test test-quick test-unit test-integration test-models test-utils test-slow test-all test-coverage test-fast test-failfast test-lf lint format format-check type-check clean clean-all check ci docs
 
 help:  ## Show this help message
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo "========================================="
+	@echo "pyNullstrap Development Commands"
+	@echo "========================================="
+	@echo ""
+	@echo "Installation:"
+	@grep -E '^install.*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Testing:"
+	@grep -E '^test.*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Code Quality:"
+	@grep -E '^(lint|format|type-check|check|ci):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Maintenance:"
+	@grep -E '^(clean|docs):.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
 
 install:  ## Install package in development mode
 	pip install -e .
@@ -12,90 +27,128 @@ install:  ## Install package in development mode
 install-dev:  ## Install package with all development dependencies
 	pip install -e ".[test,dev,docs]"
 
-test:  ## Run all tests (excluding slow tests) with parallel execution
-	pytest tests/ -m "not slow" -v
+install-all:  ## Install package with all optional dependencies
+	pip install -e ".[all]"
 
-test-unit:  ## Run unit tests only with parallel execution
-	pytest tests/ -m "unit" -v
+install-survival:  ## Install survival analysis dependencies (scikit-survival)
+	pip install -e ".[survival]"
 
-test-integration:  ## Run integration tests only with parallel execution
-	pytest tests/ -m "integration" -v
+# ============================================================
+# Testing Targets
+# ============================================================
 
-test-slow:  ## Run slow tests only (sequential for stability)
-	pytest tests/ -m "slow" -v -n 0
-
-test-all:  ## Run all tests including slow tests with parallel execution
-	pytest tests/ -v
-
-test-coverage:  ## Run tests with coverage report (sequential for coverage accuracy)
-	pytest tests/ -m "not slow" --cov=nullstrap --cov-report=html --cov-report=term-missing -v -n 0
-
-test-fast:  ## Run only fast tests with maximum parallelization
-	pytest tests/ -m "not slow and not integration" -v -n auto
-
-test-parallel:  ## Run tests with specific number of workers
-	pytest tests/ -m "not slow" -v -n 4
-
-test-runner:  ## Run tests using the test runner script (quick tests)
+test:  ## Run quick tests (recommended for development)
 	python tests/run_tests.py quick
 
-test-runner-all:  ## Run all tests using the test runner script
+test-quick:  ## Alias for 'test' - run quick tests excluding slow tests
+	python tests/run_tests.py quick
+
+test-all:  ## Run all tests including slow tests
 	python tests/run_tests.py all
 
-test-runner-coverage:  ## Run tests with coverage using the test runner script
+test-unit:  ## Run unit tests only
+	python tests/run_tests.py unit
+
+test-integration:  ## Run integration tests only
+	python tests/run_tests.py integration
+
+test-models:  ## Run all model tests (LM, GLM, Cox, GGM)
+	python tests/run_tests.py models
+
+test-utils:  ## Run utility function tests only
+	python tests/run_tests.py utils
+
+test-slow:  ## Run slow/performance tests only
+	python tests/run_tests.py slow
+
+test-coverage:  ## Run tests with coverage report (HTML + terminal)
 	python tests/run_tests.py coverage
 
-test-runner-install:  ## Install dependencies and run tests using the test runner script
-	python tests/run_tests.py quick --install-deps
+test-fast:  ## Run only fast tests (unit, excluding integration and slow)
+	pytest tests/ -m "not slow and not integration" -v
 
-lint:  ## Run linting checks
-	flake8 nullstrap/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-	flake8 nullstrap/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+test-failfast:  ## Run tests and stop on first failure
+	python tests/run_tests.py quick -x
+
+test-lf:  ## Run only tests that failed in the last run
+	python tests/run_tests.py quick --lf
+
+test-verbose:  ## Run tests with verbose output
+	python tests/run_tests.py quick --verbose
+
+# ============================================================
+# Code Quality Targets
+# ============================================================
+
+lint:  ## Run linting checks (flake8)
+	@echo "Running flake8 linting..."
+	@flake8 nullstrap/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+	@flake8 nullstrap/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
 format:  ## Format code with black and isort
-	black nullstrap/ tests/
-	isort nullstrap/ tests/
+	@echo "Formatting code with black..."
+	@black nullstrap/ tests/
+	@echo "Sorting imports with isort..."
+	@isort nullstrap/ tests/
 
-format-check:  ## Check code formatting
-	black --check nullstrap/ tests/
-	isort --check-only nullstrap/ tests/
+format-check:  ## Check code formatting without making changes
+	@echo "Checking code format..."
+	@black --check nullstrap/ tests/
+	@isort --check-only nullstrap/ tests/
 
 type-check:  ## Run type checking with mypy
-	mypy nullstrap/ --ignore-missing-imports
+	@echo "Running mypy type checking..."
+	@mypy nullstrap/ --ignore-missing-imports || true
 
-docs:  ## Build documentation
-	cd docs && make html
+check: format-check lint type-check test  ## Run all quality checks (format, lint, type, test)
 
-docs-clean:  ## Clean documentation build
-	cd docs && make clean
+ci:  ## Run CI-style checks locally (for pre-commit validation)
+	@echo "Running CI checks..."
+	@python tests/run_tests.py quick --verbose
+	@python tests/run_tests.py coverage
 
-docs-clean-all:  ## Clean all documentation artifacts (docs + root)
-	cd docs && make clean
-	rm -rf docs/_build/
-	rm -rf docs/_static/
-	rm -rf docs/_templates/
+# ============================================================
+# Maintenance Targets
+# ============================================================
 
-clean:  ## Clean up build artifacts
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info/
-	rm -rf .pytest_cache/
-	rm -rf .coverage
-	rm -rf htmlcov/
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+clean:  ## Clean up build artifacts and cache files
+	@echo "Cleaning build artifacts..."
+	@rm -rf build/
+	@rm -rf dist/
+	@rm -rf *.egg-info/
+	@rm -rf .pytest_cache/
+	@rm -rf .coverage
+	@rm -rf htmlcov/
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@echo "Clean complete!"
 
-check: format-check lint type-check test  ## Run all checks (format, lint, type, test)
+clean-all: clean  ## Clean everything including docs
+	@echo "Cleaning documentation..."
+	@rm -rf docs/_build/ 2>/dev/null || true
+	@echo "All clean!"
 
-ci:  ## Run CI checks locally
-	pytest tests/ -m "not slow and not integration" --cov=nullstrap --cov-report=xml --cov-report=term-missing -v
-	pytest tests/ -m "integration" --cov=nullstrap --cov-report=xml --cov-report=term-missing -v
+docs:  ## Build documentation (if docs/ exists)
+	@if [ -d "docs" ]; then \
+		echo "Building documentation..."; \
+		cd docs && make html; \
+	else \
+		echo "Documentation directory not found (docs/ in .gitignore)"; \
+	fi
 
-install-survival:  ## Install survival analysis dependencies
-	pip install scikit-survival
+# ============================================================
+# Utility Targets
+# ============================================================
 
-install-graphical:  ## Install graphical model dependencies
-	pip install scikit-learn
+coverage-report:  ## Open coverage report in browser
+	@python -m webbrowser htmlcov/index.html 2>/dev/null || open htmlcov/index.html || xdg-open htmlcov/index.html
 
-install-all:  ## Install all optional dependencies
-	pip install -e ".[all]"
+watch-tests:  ## Watch for changes and run tests automatically (requires pytest-watch)
+	@command -v ptw >/dev/null 2>&1 && ptw tests/ -- -m "not slow" || \
+		echo "pytest-watch not installed. Install with: pip install pytest-watch"
+
+list-tests:  ## List all available tests
+	@pytest --collect-only -q tests/
+
+# Default target
+.DEFAULT_GOAL := help

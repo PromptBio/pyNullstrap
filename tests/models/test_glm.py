@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from nullstrap.models.glm import NullstrapGLM
-from tests.conftest import (assert_fdr_control, assert_model_fitted,
-                            assert_reproducible_results)
+from ..conftest import (assert_fdr_control, assert_model_fitted,
+                        assert_reproducible_results)
 
 
 class TestNullstrapGLM:

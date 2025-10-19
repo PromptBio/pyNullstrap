@@ -189,7 +189,7 @@ def model_params():
     return {
         "fdr": 0.1,
         "alpha_": None,  # Let model choose automatically
-        "B_reps": 3,  # Reduced for faster testing
+        "B_reps": 5,  # Minimum for reliable correction factor estimation
         "random_state": 42,
         "max_iter": 1000,
     }

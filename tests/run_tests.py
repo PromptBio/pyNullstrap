@@ -31,10 +31,22 @@ def run_command(cmd, description):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run pyNullstrap tests")
+    parser = argparse.ArgumentParser(
+        description="Run pyNullstrap tests",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s quick                    # Run quick tests (excluding slow tests)
+  %(prog)s all --verbose            # Run all tests with verbose output
+  %(prog)s coverage                 # Run tests with coverage report
+  %(prog)s unit -n 4                # Run unit tests with 4 workers
+  %(prog)s models --install-deps    # Install deps and run model tests
+  %(prog)s integration              # Run integration tests only
+        """
+    )
     parser.add_argument(
         "test_type",
-        choices=["all", "unit", "integration", "slow", "coverage", "quick"],
+        choices=["all", "unit", "integration", "models", "utils", "slow", "coverage", "quick"],
         help="Type of tests to run",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
@@ -46,7 +58,19 @@ def main():
         "-n",
         type=int,
         default=None,
-        help="Number of parallel workers (default: auto)",
+        help="Number of parallel workers (default: auto, use 0 for sequential)",
+    )
+    parser.add_argument(
+        "--failfast",
+        "-x",
+        action="store_true",
+        help="Stop on first test failure"
+    )
+    parser.add_argument(
+        "--last-failed",
+        "--lf",
+        action="store_true",
+        help="Run only tests that failed in the last run"
     )
 
     args = parser.parse_args()
@@ -63,17 +87,23 @@ def main():
 
     if args.verbose:
         base_cmd.append("-v")
+    
+    if args.failfast:
+        base_cmd.append("-x")
+    
+    if args.last_failed:
+        base_cmd.append("--lf")
 
     # Add parallel execution
     if args.workers is not None:
         if args.workers == 0:
-            base_cmd.append("-n 0")  # Sequential execution
+            pass  # Sequential execution (don't add -n flag)
         else:
             base_cmd.extend(["-n", str(args.workers)])
     else:
         # Use auto for most test types, sequential for slow/coverage
         if args.test_type not in ["slow", "coverage"]:
-            base_cmd.append("-n auto")
+            base_cmd.extend(["-n", "auto"])
 
     # Test type specific commands
     if args.test_type == "all":
@@ -85,6 +115,12 @@ def main():
     elif args.test_type == "integration":
         cmd = base_cmd + ["tests/", "-m", "integration"]
         description = "Integration tests"
+    elif args.test_type == "models":
+        cmd = base_cmd + ["tests/models/", "tests/test_models.py"]
+        description = "Model tests (LM, GLM, Cox, GGM)"
+    elif args.test_type == "utils":
+        cmd = base_cmd + ["tests/test_utils.py"]
+        description = "Utility function tests"
     elif args.test_type == "slow":
         cmd = base_cmd + ["tests/", "-m", "slow"]
         description = "Slow tests"

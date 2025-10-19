@@ -104,7 +104,8 @@ cox_model.fit(X, y_survival)
 # Graphical model for network inference
 graphical_model = NullstrapGGM(fdr=0.1)
 graphical_model.fit(X)  # No y needed for graphical models
-adjacency_matrix = graphical_model.get_adjacency_matrix()
+precision_matrix = graphical_model.precision_
+selected_edges = graphical_model.selected_
 ```
 
 ### Pipeline Integration
@@ -156,7 +157,7 @@ Nullstrap is a general framework for variable selection with false discovery rat
 4. **Select threshold** to control FDR at target level
 5. **Output selection** of variables exceeding the threshold
 
-For detailed mathematical formulation and theoretical foundations, see the [Methodology documentation](docs/methodology.md).
+For detailed mathematical formulation and theoretical foundations, see the original paper [[1](#-citation)] and the [Methodology documentation](docs/methodology.md) (under construction).
 
 ---
 
@@ -172,7 +173,7 @@ For detailed mathematical formulation and theoretical foundations, see the [Meth
 
 ## 📚 Documentation
 
-For detailed usage examples, advanced configuration options, performance monitoring, model evaluation, and comprehensive API reference, see the [full documentation](docs/).
+For detailed usage examples, advanced configuration options, performance monitoring, model evaluation, and comprehensive API reference, see the [full documentation](docs/) (under construction).
 
 For testing information, quick start commands, and Jupyter notebook examples, see [tests/README.md](tests/README.md).
 
@@ -180,7 +181,7 @@ For testing information, quick start commands, and Jupyter notebook examples, se
 
 ## 📖 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
 ---
 

@@ -35,8 +35,8 @@ def compute_fdp(
     coef_real = np.asarray(coef_real)
     coef_knockoff = np.asarray(coef_knockoff)
 
-    num_knockoff = int(np.sum(coef_knockoff >= threshold))
-    num_real = int(np.sum(coef_real >= threshold))
+    num_knockoff = int(np.count_nonzero(coef_knockoff >= threshold))
+    num_real = int(np.count_nonzero(coef_real >= threshold))
 
     return (num_knockoff + fdr / 2) / max(num_real, 1)
 
